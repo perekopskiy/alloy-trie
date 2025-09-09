@@ -9,6 +9,7 @@ use crate::{HashMap, nodes::RlpNode, proof::AddedRemovedKeys};
 use alloc::vec::Vec;
 use alloy_primitives::{B256, keccak256};
 use core::cmp;
+#[cfg(feature = "tracing")]
 use tracing::trace;
 
 mod value;
@@ -195,12 +196,15 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
 
     #[inline]
     fn set_key_value(&mut self, key: Nibbles, value: HashBuilderValueRef<'_>) {
+        #[cfg(feature = "tracing")]
         self.log_key_value("old value");
         self.key = key;
         self.value.set_from_ref(value);
+        #[cfg(feature = "tracing")]
         self.log_key_value("new value");
     }
 
+    #[cfg(feature = "tracing")]
     fn log_key_value(&self, msg: &str) {
         trace!(target: "trie::hash_builder",
             key = ?self.key,
@@ -227,10 +231,12 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
         let mut current = self.key;
         debug_assert!(!current.is_empty());
 
+        #[cfg(feature = "tracing")]
         trace!(target: "trie::hash_builder", ?current, ?succeeding, "updating merkle tree");
 
         let mut i = 0usize;
         loop {
+            #[cfg(feature = "tracing")]
             let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions).entered();
 
             let preceding_exists = !self.state_masks.is_empty();
@@ -240,6 +246,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
             let len = cmp::max(preceding_len, common_prefix_len);
             assert!(len < current.len(), "len {} current.len {}", len, current.len());
 
+            #[cfg(feature = "tracing")]
             trace!(
                 target: "trie::hash_builder",
                 ?len,
@@ -253,10 +260,12 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
             let extra_digit = current.get_unchecked(len);
             if self.state_masks.len() <= len {
                 let new_len = len + 1;
+                #[cfg(feature = "tracing")]
                 trace!(target: "trie::hash_builder", new_len, old_len = self.state_masks.len(), "scaling state masks to fit");
                 self.state_masks.resize(new_len, TrieMask::default());
             }
             self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
+            #[cfg(feature = "tracing")]
             trace!(
                 target: "trie::hash_builder",
                 ?extra_digit,
@@ -272,10 +281,12 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
             if !succeeding.is_empty() || preceding_exists {
                 len_from += 1;
             }
+            #[cfg(feature = "tracing")]
             trace!(target: "trie::hash_builder", "skipping {len_from} nibbles");
 
             // The key without the common prefix
             let short_node_key = current.slice(len_from..);
+            #[cfg(feature = "tracing")]
             trace!(target: "trie::hash_builder", ?short_node_key);
 
             // Concatenate the 2 nodes together
@@ -287,6 +298,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
                         let rlp = leaf_node.rlp(&mut self.rlp_buf);
 
                         let path = current.slice(..len_from);
+                        #[cfg(feature = "tracing")]
                         trace!(
                             target: "trie::hash_builder",
                             ?path,
@@ -301,6 +313,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
                         }
                     }
                     HashBuilderValueRef::Hash(hash) => {
+                        #[cfg(feature = "tracing")]
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
                         self.stack.push(RlpNode::word_rlp(hash));
 
@@ -325,6 +338,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
                 let rlp = extension_node.rlp(&mut self.rlp_buf);
 
                 let path = current.slice(..len_from);
+                #[cfg(feature = "tracing")]
                 trace!(
                     target: "trie::hash_builder",
                     ?path,
@@ -342,6 +356,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
             }
 
             if preceding_len <= common_prefix_len && !succeeding.is_empty() {
+                #[cfg(feature = "tracing")]
                 trace!(target: "trie::hash_builder", "no common prefix to create branch nodes from, returning");
                 return;
             }
@@ -358,13 +373,16 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
             self.resize_masks(len);
 
             if preceding_len == 0 {
+                #[cfg(feature = "tracing")]
                 trace!(target: "trie::hash_builder", "0 or 1 state masks means we have no more elements to process");
                 return;
             }
 
             current.truncate(preceding_len);
+            #[cfg(feature = "tracing")]
             trace!(target: "trie::hash_builder", ?current, "truncated nibbles to {} bytes", preceding_len);
 
+            #[cfg(feature = "tracing")]
             trace!(target: "trie::hash_builder", state_masks = ?self.state_masks, "popping empty state masks");
             while self.state_masks.last() == Some(&TrieMask::default()) {
                 self.state_masks.pop();
@@ -396,6 +414,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);
         let path = current.slice(..len);
+        #[cfg(feature = "tracing")]
         trace!(
             target: "trie::hash_builder",
             ?path,
@@ -410,6 +429,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
 
         // Clears the stack from the branch node elements
         let first_child_idx = self.stack.len() - state_mask.count_ones() as usize;
+        #[cfg(feature = "tracing")]
         trace!(
             target: "trie::hash_builder",
             new_len = first_child_idx,
@@ -468,6 +488,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
     }
 
     fn resize_masks(&mut self, new_len: usize) {
+        #[cfg(feature = "tracing")]
         trace!(
             target: "trie::hash_builder",
             new_len,

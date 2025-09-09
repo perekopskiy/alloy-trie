@@ -4,6 +4,7 @@ use crate::{
 };
 use alloy_primitives::Bytes;
 use alloy_rlp::EMPTY_STRING_CODE;
+#[cfg(feature = "tracing")]
 use tracing::trace;
 
 use alloc::vec::Vec;
@@ -32,7 +33,9 @@ impl AddedRemovedKeysTracking {
     /// Stores the path and proof of the most recently seen path/proof which were not retained and
     /// are not potentially removed.
     fn track_nontarget(&mut self, path: &Nibbles, proof: &[u8]) {
+        #[cfg(feature = "tracing")]
         trace!(target: "trie::proof_retainer", ?path, "Tracking non-target");
+
         self.last_nontarget_path = *path;
         self.last_nontarget_proof.clear();
         self.last_nontarget_proof.extend(proof);
@@ -40,7 +43,9 @@ impl AddedRemovedKeysTracking {
 
     /// Stores the path and proof of the most recently seen branch.
     fn track_branch(&mut self, path: &Nibbles, proof: &[u8]) {
+        #[cfg(feature = "tracing")]
         trace!(target: "trie::proof_retainer", ?path, "Tracking branch");
+
         self.last_branch_path = *path;
         self.last_branch_proof.clear();
         self.last_branch_proof.extend(proof);
@@ -137,12 +142,14 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
 
     /// Retain the proof with no checks being performed.
     fn retain_unchecked(&mut self, path: Nibbles, proof: Bytes) {
+        #[cfg(feature = "tracing")]
         trace!(
             target: "trie::proof_retainer",
             path = ?path,
             proof = alloy_primitives::hex::encode(&proof),
             "Retaining proof",
         );
+
         self.proof_nodes.insert(path, proof);
     }
 
@@ -217,6 +224,7 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
                 let is_prefix_added = added_removed_keys.as_ref().is_prefix_added(path);
                 let extension_child_is_nontarget =
                     self.added_removed_tracking.extension_child_is_nontarget(path, short_key);
+                #[cfg(feature = "tracing")]
                 trace!(
                     target: "trie::proof_retainer",
                     ?path,
@@ -225,6 +233,7 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
                     ?extension_child_is_nontarget,
                     "Deciding to retain non-target extension child",
                 );
+
                 if is_prefix_added && extension_child_is_nontarget {
                     let last_branch_path = self.added_removed_tracking.last_branch_path;
                     let last_branch_proof =
@@ -281,6 +290,7 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
                     .added_removed_tracking
                     .branch_child_is_nontarget(path, nonremoved_mask.trailing_zeros() as u8);
 
+                #[cfg(feature = "tracing")]
                 trace!(
                     target: "trie::proof_retainer",
                     ?path,
